@@ -1,0 +1,13 @@
+apply plugin: 'java-library'
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation files('libs/dom4j-1.6.1.jar')
+    implementation files('libs/jdom-2.0.6.jar')
+    implementation files('libs/json-simple-1.1.1.jar')
+    implementation files('libs/json-20160810.jar')
+    implementation files('libs/flatlaf-2.4.jar')
+}
+
+sourceCompatibility = "7"
+targetCompatibility = "7"
