@@ -247,7 +247,7 @@ public class MySQLite {
 
     public Process exec(String cmd, boolean print) {
         try {
-            Process process = Runtime.getRuntime().exec("/usr/local/bin/" + cmd);
+            Process process = Runtime.getRuntime().exec("/opt/homebrew/bin/" + cmd);
             if (print) {
                 BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(process.getInputStream()));
                 String line = "";
