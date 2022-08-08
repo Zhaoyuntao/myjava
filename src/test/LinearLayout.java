@@ -1,6 +1,4 @@
-/**
- * Created by zhaoyuntao on 2019-4-29.
- */
+package test;
 
 import java.awt.*;
 
@@ -47,7 +45,6 @@ public class LinearLayout extends FlowLayout {
                 Component child = parent.getComponent(i);
                 Dimension dimension = child.getPreferredSize();
                 if (orientation == Orientation.VERTICAL) {
-                    S.s("isWeight:" + isWeight(dimension.width));
                     w = Math.max(w, isWeight(dimension.width) ? 0 : dimension.width);
                     h += (isWeight(dimension.height) ? 0 : dimension.height);
                 } else {
@@ -78,7 +75,6 @@ public class LinearLayout extends FlowLayout {
             float weightSum = 0;
             int widthMax = parent.getWidth() - insets.left - insets.right;
             int heightMax = parent.getHeight() - insets.top - insets.bottom;
-            S.s("w:" + widthMax + " " + heightMax);
             for (int i = 0; i < childCount; i++) {
                 Component child = parent.getComponent(i);
                 Dimension dimension = child.getPreferredSize();
