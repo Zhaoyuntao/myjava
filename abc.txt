@@ -1,0 +1,83 @@
+
+select msgtime,srvtime,content from ChatMessageModel where sessionid = 971585661024
+and case when
+    fromuid = 971585991024
+    then msgtime > (select case when
+                               fromuid = 971585991024
+                               then
+                               msgtime
+                               else
+                               srvtime
+                               end from ChatMessageModel where msgtime = 1666101351891)
+    else
+    srvtime > (select case when
+                          fromuid = 971585991024
+                          then
+                          msgtime
+                          else
+                          srvtime
+                          end from ChatMessageModel where msgtime = 1666101351891)
+    end
+    order by case when
+                fromuid = 971585991024
+                then msgtime
+                else srvtime
+                end asc
+
+sessionid = 971585661024 and  CASE WHEN fromuid = 971585991024
+THEN msgtime <= (select CASE WHEN fromuid = 971585991024 THEN msgtime ELSE srvtime END FROM ChatMessageModel WHERE msgtime = 1666159138062)
+ELSE srvtime <= (select CASE WHEN fromuid = 971585991024 THEN msgtime ELSE srvtime END FROM ChatMessageModel WHERE msgtime = 1666159138062) END
+
+
+
+select msgtime,srvtime,content from ChatMessageModel where sessionid = 971585661024
+    order by case when
+                fromuid = 971585991024
+                then msgtime
+                else srvtime
+                end asc
+
+select msgtime,srvtime,content from ChatMessageModel where sessionid = 971585661024
+    order by case when
+                fromuid = 971585991024
+                then srvtime
+                else msgtime
+                end asc
+
+update ChatMessageModel set srvtime = 1666101352098 where sessionid = 971585661024 and content = 666
+    
+    
+    (0):   [content:1]  [srvtime:16661013 42210]  [msgtime:16661013 41947]
+    (1):   [content:2]  [srvtime:16661013 43376]  [msgtime:16661013 43159]
+    (2):   [content:3]  [srvtime:16661013 44651]  [msgtime:16661013 44438]
+    (3):   [content:4]  [srvtime:16661013 45985]  [msgtime:16661013 45767] <-(before)
+    (4):   [content:5]  [srvtime:16661013 47215]  [msgtime:16661013 47000] (uuid)
+    (5):   [content:6]  [srvtime:16661013 48393]  [msgtime:16661013 48180]
+    (6):   [content:7]  [srvtime:16661013 49662]  [msgtime:16661013 49449]
+    (7):   [content:8]  [srvtime:16661013 50918]  [msgtime:16661013 50688]
+    (8):   [content:9]  [srvtime:16661013 52099]  [msgtime:16661013 51891]
+    (9):   [content:666]  [srvtime:1666157778818]  [msgtime:16661577 77661]
+
+    After change msgtime to 1666101347216
+    (0):   [content:1]  [srvtime:16661013 42210]  [msgtime:16661013 41947]
+    (1):   [content:2]  [srvtime:16661013 43376]  [msgtime:16661013 43159]
+    (2):   [content:3]  [srvtime:16661013 44651]  [msgtime:16661013 44438]
+    (3):   [content:4]  [srvtime:16661013 45985]  [msgtime:16661013 47216] <-(Changed)
+    (4):   [content:5]  [srvtime:16661013 47215]  [msgtime:16661013 47000] (uuid)
+    (5):   [content:6]  [srvtime:16661013 48393]  [msgtime:16661013 48180]
+    (6):   [content:7]  [srvtime:16661013 49662]  [msgtime:16661013 49449]
+    (7):   [content:8]  [srvtime:16661013 50918]  [msgtime:16661013 50688]
+    (8):   [content:9]  [srvtime:16661013 52099]  [msgtime:16661013 51891]
+    (8):   [content:666]  [srvtime:1666157778818]  [msgtime:16661013 52100]
+    
+    Select > 16661013 51891:
+    (0):   [content:6]  [srvtime:16661013 48393]  [msgtime:16661013 48180]
+    (1):   [content:7]  [srvtime:16661013 49662]  [msgtime:16661013 49449]
+    (2):   [content:8]  [srvtime:16661013 50918]  [msgtime:16661013 50688]
+    (3):   [content:9]  [srvtime:16661013 52099]  [msgtime:16661013 51891]
+
+    Select < 16661013 47000:
+    (0):   [content:1]  [srvtime:16661013 42210]  [msgtime:16661013 41947]
+    (1):   [content:2]  [srvtime:16661013 43376]  [msgtime:16661013 43159]
+    (2):   [content:3]  [srvtime:16661013 44651]  [msgtime:16661013 44438]
+    (3):   [content:4]  [srvtime:16661013 45985]  [msgtime:16661013 47216]
