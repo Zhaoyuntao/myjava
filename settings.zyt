@@ -1,0 +1,7 @@
+columnLength#@#100
+selectJSON#@#true
+defaultPackageName#@#im.thebot.messenger.beta
+selectBLOB#@#true
+selectColor#@#true
+defaultSql#@#
+adbPath#@#/opt/homebrew/bin/

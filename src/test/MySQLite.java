@@ -4,19 +4,24 @@ import com.formdev.flatlaf.FlatLightLaf;
 import test.pattern.PatternUtils;
 import test.pattern.TPatternGroup;
 import test.pattern.TPatternItem;
+import test.xlog.XlogFileDecoder;
 
 import javax.swing.*;
 import javax.swing.text.*;
 import java.awt.*;
-import java.awt.event.ItemEvent;
-import java.awt.event.ItemListener;
-import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.dnd.DnDConstants;
+import java.awt.dnd.DropTarget;
+import java.awt.dnd.DropTargetDropEvent;
+import java.awt.event.*;
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 
 /**
@@ -41,9 +46,18 @@ public class MySQLite {
     private final Checkbox checkboxColor;
     private String packageName = BETA;
 
+    private String adbPath = "/opt/homebrew/bin/";
+    private String lastSql;
+    private int columnLength = 100;
+    private HintTextField textViewSql;
+    private final List<String> commands = new ArrayList<>();
+    private int commandIndex;
+    private boolean selectJson, selectBlob, selectColor;
+
     public MySQLite() {
+        readSettings();
         FlatLightLaf.setup();
-        List<String> commands = new ArrayList<>();
+
         JFrame.setDefaultLookAndFeelDecorated(true);
 
         // 创建及设置窗口
@@ -51,7 +65,6 @@ public class MySQLite {
         Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
         int width = screenSize.width;//得到宽
         int height = screenSize.height;//得到高
-        S.s("w:" + width + " h:" + height);
         int wFrame = Math.min(1400, (int) (width * 0.9f));
         int hFrame = Math.min(1000, (int) (height * 0.7f));
         int x = (int) ((width - wFrame) / 2f);
@@ -66,12 +79,24 @@ public class MySQLite {
         textViewTop.setFont(new Font(null, 0, 10));
         textViewTop.setBackground(Color.black);
         textViewTop.setForeground(Color.white);
+        textViewTop.setDropTarget(new DropTarget() {
+            public synchronized void drop(DropTargetDropEvent evt) {
+                try {
+                    evt.acceptDrop(DnDConstants.ACTION_COPY);
+                    List<File> droppedFiles = (List<File>) evt.getTransferable().getTransferData(DataFlavor.javaFileListFlavor);
+                    for (File file : droppedFiles) {
+                        parseXlog(file);
+                    }
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+        });
         JScrollPane resultScrollPane = new JScrollPane(textViewTop);
         resultScrollPane.setBackground(null);
         resultScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
 
-        final HintTextField textViewSql = new HintTextField("Input your sql here");
-//        textViewSql.setText("select * from ChatMessageModel where rowid = 530010");
+        textViewSql = new HintTextField("Input your sql here");
         final HintTextField textViewMaxLength = new HintTextField("Value length limit");
         textViewMaxLength.setBackground(new Color(220, 220, 240));
         textViewMaxLength.setDocument(new PlainDocument() {
@@ -83,23 +108,75 @@ public class MySQLite {
                     isNumber = true;
                 } catch (Exception ignore) {
                 }
-                S.s("is:" + isNumber);
                 if (isNumber) {
                     super.insertString(offs, str, a);
+                    try {
+                        columnLength = Integer.parseInt(textViewMaxLength.getText());
+                    } catch (Exception ignore) {
+                    }
+                }
+            }
+
+            @Override
+            public void remove(int offs, int len) throws BadLocationException {
+                super.remove(offs, len);
+                try {
+                    columnLength = Integer.parseInt(textViewMaxLength.getText());
+                } catch (Exception ignore) {
                 }
             }
         });
-        textViewMaxLength.setText("100");
+        textViewMaxLength.setText(String.valueOf(columnLength));
+
+        final HintTextField textViewADBPath = new HintTextField("adb path");
+        textViewADBPath.setDocument(new PlainDocument() {
+            @Override
+            public void insertString(int offs, String str, AttributeSet a) throws BadLocationException {
+                super.insertString(offs, str, a);
+                adbPath = textViewADBPath.getText();
+                S.s("adb:" + adbPath);
+            }
+
+            @Override
+            public void remove(int offs, int len) throws BadLocationException {
+                super.remove(offs, len);
+                adbPath = textViewADBPath.getText();
+                S.s("adb:" + adbPath);
+            }
+        });
+        textViewADBPath.setText(adbPath);
 
         checkboxJson = new Checkbox();
         checkboxJson.setLabel("Format json");
+        checkboxJson.addItemListener(new ItemListener() {
+            @Override
+            public void itemStateChanged(ItemEvent e) {
+                selectJson = checkboxJson.getState();
+            }
+        });
+        checkboxJson.setState(selectJson);
+
         checkboxBlob = new Checkbox();
         checkboxBlob.setLabel("Format blob");
+        checkboxBlob.addItemListener(new ItemListener() {
+            @Override
+            public void itemStateChanged(ItemEvent e) {
+                selectBlob = checkboxBlob.getState();
+            }
+        });
+        checkboxBlob.setState(selectBlob);
+
         checkboxColor = new Checkbox();
         checkboxColor.setLabel("Color");
-        checkboxColor.setState(true);
+        checkboxColor.addItemListener(new ItemListener() {
+            @Override
+            public void itemStateChanged(ItemEvent e) {
+                selectColor = checkboxColor.getState();
+            }
+        });
+        checkboxColor.setState(selectColor);
         textViewSql.addKeyListener(new KeyListener() {
-            int commandIndex;
+
 
             @Override
             public void keyTyped(KeyEvent e) {
@@ -135,21 +212,21 @@ public class MySQLite {
 
             private void processText(String text) {
                 if ("clear".equalsIgnoreCase(text) || "c".equals(text)) {
-                    exec("adb logcat -c", true);
-                    textViewTop.setText(null);
+                    clearLog();
                 } else if ("quit".equalsIgnoreCase(text) || "exit".equalsIgnoreCase(text)) {
                     System.exit(0);
                 } else {
                     if (commands.size() == 0 || !commands.get(commands.size() - 1).equals(text)) {
+                        lastSql = text;
                         commands.add(text);
                     }
                     commandIndex = commands.size();
                     StringBuilder stringBuilder = new StringBuilder();
                     stringBuilder.append("adb shell am start-foreground-service -n " + packageName + "/com.sdk.chat.test.ChatDebugService --ez format_ false");
-                    if (checkboxJson.getState()) {
+                    if (selectJson) {
                         stringBuilder.append(" --ez formatJson true");
                     }
-                    if (checkboxBlob.getState()) {
+                    if (selectBlob) {
                         stringBuilder.append(" --ez formatBlob true");
                     }
                     try {
@@ -172,12 +249,11 @@ public class MySQLite {
             }
         });
 
-
         JPanel paramPanel = new JPanel();
         paramPanel.setBorder(BorderFactory.createEmptyBorder(6, 12, 6, 12));
         paramPanel.setLayout(new LinearLayout(LinearLayout.Orientation.HORIZONTAL));
 
-        JRadioButton radioBeta = new JRadioButton("beta", true);
+        final JRadioButton radioBeta = new JRadioButton("beta", true);
         radioBeta.addItemListener(new ItemListener() {
             @Override
             public void itemStateChanged(ItemEvent changeEvent) {
@@ -186,7 +262,7 @@ public class MySQLite {
                 }
             }
         });
-        JRadioButton radioProduct = new JRadioButton("product", false);
+        final JRadioButton radioProduct = new JRadioButton("product", false);
         radioProduct.addItemListener(new ItemListener() {
             @Override
             public void itemStateChanged(ItemEvent changeEvent) {
@@ -198,6 +274,11 @@ public class MySQLite {
         ButtonGroup group = new ButtonGroup();
         group.add(radioBeta);
         group.add(radioProduct);
+        if (PRODUCT.equals(packageName)) {
+            radioProduct.setSelected(true);
+        } else if (BETA.equals(packageName)) {
+            radioBeta.setSelected(true);
+        }
 
         JPanel radioPanel = new JPanel();
         radioPanel.setBackground(new Color(220, 220, 240));
@@ -209,20 +290,34 @@ public class MySQLite {
         radioProduct.setPreferredSize(new LinearLayout.LayoutParams(1, true, 1, true));
         radioPanel.add(radioProduct);
 
+        //----------------------------------------------------------------------------------------------
+        textViewADBPath.setPreferredSize(new LinearLayout.LayoutParams(300, false, 1, true, (byte) 12, (byte) 10));
+        paramPanel.add(textViewADBPath);
+
         checkboxJson.setPreferredSize(new LinearLayout.LayoutParams(100, false, 1, true));
         paramPanel.add(checkboxJson);
         checkboxBlob.setPreferredSize(new LinearLayout.LayoutParams(100, false, 1, true));
         paramPanel.add(checkboxBlob);
         checkboxColor.setPreferredSize(new LinearLayout.LayoutParams(100, false, 1, true));
         paramPanel.add(checkboxColor);
-        textViewMaxLength.setPreferredSize(new LinearLayout.LayoutParams(150, false, 1, true));
+
+        textViewMaxLength.setPreferredSize(new LinearLayout.LayoutParams(150, false, 1, true, (byte) 10, (byte) 10));
         paramPanel.add(textViewMaxLength);
-        JPanel emptyPanel = new JPanel();
-        emptyPanel.setPreferredSize(new LinearLayout.LayoutParams(10, false, 1, true));
-        paramPanel.add(emptyPanel);
-        radioPanel.setPreferredSize(new LinearLayout.LayoutParams(200, false, 1, true));
+
+        radioPanel.setPreferredSize(new LinearLayout.LayoutParams(200, false, 1, true, (byte) 10, (byte) 10));
         paramPanel.add(radioPanel);
 
+        JButton clearButton = new JButton("Clear");
+        clearButton.setPreferredSize(new LinearLayout.LayoutParams(80, false, 1, true, (byte) 10, (byte) 10));
+        clearButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                clearLog();
+            }
+        });
+        paramPanel.add(clearButton);
+
+        //---------------------------------------------------------------------------------------------------------
         resultScrollPane.setPreferredSize(new LinearLayout.LayoutParams(8, true));
         frame.getContentPane().add(resultScrollPane);
         paramPanel.setPreferredSize(new LinearLayout.LayoutParams(40, false));
@@ -246,7 +341,6 @@ public class MySQLite {
                         BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(process.getInputStream()));
                         String line = "";
                         while ((line = bufferedReader.readLine()) != null) {
-                            appendToPane("\n", WHITE);
                             appendToPane(line, WHITE);
                             textViewTop.setCaretPosition(textViewTop.getDocument().getLength());
                         }
@@ -263,10 +357,73 @@ public class MySQLite {
             }
         }).start();
         addStyle();
+
+        frame.addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                writeSettings();
+            }
+        });
     }
 
-    public static void main(String[] args) {
-        new MySQLite();
+    private void writeSettings() {
+        Map<String, String> settings = new HashMap<>();
+        settings.put(FileUtil.KEY_ADB_PATH, adbPath);
+        settings.put(FileUtil.KEY_LAST_SQL, lastSql);
+        settings.put(FileUtil.KEY_LAST_COLUMN_LENGTH, String.valueOf(columnLength));
+        settings.put(FileUtil.KEY_PACKAGE_NAME, packageName);
+
+        settings.put(FileUtil.KEY_SELECT_JSON, selectJson ? "true" : "false");
+        settings.put(FileUtil.KEY_SELECT_BLOB, selectBlob ? "true" : "false");
+        settings.put(FileUtil.KEY_SELECT_COLOR, selectColor ? "true" : "false");
+        FileUtil.write(settings);
+    }
+
+    private void readSettings() {
+        Map<String, String> tmp = FileUtil.read();
+        String adbPathTmp = tmp.get(FileUtil.KEY_ADB_PATH);
+        if (!FileUtil.isEmpty(adbPathTmp)) {
+            adbPath = adbPathTmp;
+            S.s("adbPath:" + adbPath);
+        }
+        String sqlTmp = tmp.get(FileUtil.KEY_LAST_SQL);
+        if (!FileUtil.isEmpty(sqlTmp)) {
+            lastSql = sqlTmp;
+            commands.add(lastSql);
+            commandIndex = commands.size();
+            S.s("lastSql:" + lastSql);
+        }
+        String environmentTmp = tmp.get(FileUtil.KEY_PACKAGE_NAME);
+        if (!FileUtil.isEmpty(environmentTmp)) {
+            packageName = environmentTmp;
+            S.s("packageName:" + packageName);
+        }
+
+        String selectJsonTmp = tmp.get(FileUtil.KEY_SELECT_JSON);
+        selectJson = selectJsonTmp != null && selectJsonTmp.equals("true");
+
+        String selectBlobTmp = tmp.get(FileUtil.KEY_SELECT_BLOB);
+        selectBlob = selectBlobTmp != null && selectBlobTmp.equals("true");
+
+        String selectColorTmp = tmp.get(FileUtil.KEY_SELECT_COLOR);
+        selectColor = selectColorTmp == null || selectColorTmp.equals("true");
+
+        try {
+            String columnLengthString = tmp.get(FileUtil.KEY_LAST_COLUMN_LENGTH);
+            int number = Integer.parseInt(columnLengthString);
+            if (number > 0) {
+                columnLength = number;
+                S.s("columnLength:" + columnLength);
+            }
+        } catch (Throwable e) {
+            columnLength = 100;
+        }
+    }
+
+    private void clearLog() {
+        FileUtil.delete();
+        exec("adb logcat -c", true);
+        textViewTop.setText(null);
     }
 
     private void addStyle() {
@@ -292,11 +449,12 @@ public class MySQLite {
     private void appendToPane(String msg, Pair<String, Color> pair) {
         StyledDocument document = textViewTop.getStyledDocument();
         try {
+            document.insertString(document.getLength(), "\n", document.getStyle(WHITE.getKey()));
             boolean hasTag = msg.startsWith(TAG);
             if (hasTag) {
                 msg = msg.substring(TAG.length());
             }
-            if (checkboxColor.getState() && hasTag) {
+            if (selectColor && hasTag) {
                 try {
                     List<TPatternGroup> patternGroups = PatternUtils.match("(\\(\\d+\\))(.*)", msg);
                     if (patternGroups != null && patternGroups.size() > 0) {
@@ -381,12 +539,11 @@ public class MySQLite {
 
     public Process exec(String cmd, boolean print) {
         try {
-            Process process = Runtime.getRuntime().exec("/opt/homebrew/bin/" + cmd);
+            Process process = Runtime.getRuntime().exec(adbPath + cmd);
             if (print) {
                 BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(process.getInputStream()));
                 String line = "";
                 while ((line = bufferedReader.readLine()) != null) {
-                    appendToPane("\n", WHITE);
                     appendToPane(line, WHITE);
                     textViewTop.setCaretPosition(textViewTop.getDocument().getLength());
                 }
@@ -396,5 +553,26 @@ public class MySQLite {
             appendToPane(e.getMessage(), RED);
             return null;
         }
+    }
+
+    private void parseXlog(File sourceFile) {
+        appendToPane("start parse xlog: " + sourceFile.getAbsolutePath(), BLUE);
+        String fileName = sourceFile.getName().replaceAll("\\.xlog", "");
+        final File destFile = new File(sourceFile.getParent(), fileName + "_decode.log");
+        XlogFileDecoder.ParseFile(sourceFile.getAbsolutePath(), destFile.getAbsolutePath(), new XlogFileDecoder.Callback() {
+            @Override
+            public void onSuccess() {
+                appendToPane("finish, save to :" + destFile.getAbsolutePath(), GREEN);
+            }
+
+            @Override
+            public void onFailed(String errorMessage) {
+                appendToPane("failed: " + errorMessage, RED);
+            }
+        });
+    }
+
+    public static void main(String[] args) {
+        new MySQLite();
     }
 }

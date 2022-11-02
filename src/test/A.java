@@ -1,16 +1,5 @@
 package test;
 
-import test.pattern.PatternUtils;
-import test.pattern.TPatternGroup;
-
-import java.io.*;
-import java.nio.CharBuffer;
-import java.nio.file.Files;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.regex.Pattern;
 
 public class A {
@@ -23,11 +12,62 @@ public class A {
     public static final String WEB_URL = "(?<![@A-Za-z0-9.])(" + WEB_URL_PREFIX + WEB_URL_DOMAIN_NAME + WEB_URL_SUFFIX + WEB_URL_PATH + WEB_URL_PARAM + ")(?![@A-Za-z0-9.])";
     Pattern p = Pattern.compile(WEB_URL);
 
+    public static final String WEB_TELEGRAME = "(^|\\s)/[a-zA-Z@\\d_]{1,255}|(^|\\s|\\()@[a-zA-Z\\d_]{1,32}|(^|\\s|\\()#[^0-9][\\w.]+|(^|\\s)\\$[A-Z]{3,8}([ ,.]|$)";
+
     public static void main(String[] args) {
-//        String link = "askldkasdklsandklsandk https://botim.me/mp/b/?app=me.botim.meet%2Findex.html%3Fseckey%3DdqMAdMih%26cardId%3D86e99c0400db487195e0abeb67f32351 skamdlkasdlkasmd";
-//        S.s("link:" + link);
-//        S.s("matched:" + PatternUtils.matched(BPattern.WEB_URL, link));
-//        PatternUtils.log(PatternUtils.match(BPattern.WEB_URL, link));
-        S.s(1<<10);
+//        String link = "ksajdnandkjsa https://botim.me/mp/b/?app=me.botim.me95e0abeb67f32351 salmdklsadn";
+////        S.s("link:" + link);
+////        S.s("matched:" + PatternUtils.matched(BPattern.WEB_URL, link));
+//        PatternUtils.log(PatternUtils.match(LinkifyPort.WEB_URL_STRING, link));
+
+//        new Thread(new Runnable() {
+//            @Override
+//            public void run() {
+//                try {
+//                    Thread.sleep(1000);
+//                } catch (InterruptedException e) {
+//                    throw new RuntimeException(e);
+//                }
+//                b();
+//            }
+//        }).start();
+//        a();
+//        S.s("number:"+0xf);
+//        S.s("number:"+0xff);
+//        S.s("number:"+0xfff);
+//        S.s("number:"+0x0000_0fff);
+//        S.s("number:"+Integer.MAX_VALUE);
+//        S.s("number:"+0x0fff_0000);
+//        S.s("number:"+(1<<30));
+//        S.s("number:"+(1<<1));
+//        S.s("p:"+Math.pow(2,8));
+        int w = 1000;
+        byte ms = 30;
+        byte me = 30;
+        int mask_ms = 0xff << 16;
+        int mask_me = 0xff << 24;
+        S.s("0xff: " + 0xff);
+        S.s("0xff<<16: " + (0xff << 16));
+        S.s("ms<<16: " + (ms << 16));
+        S.s("mask_ms: " + mask_ms);
+        int all = w | ms << 16 | me << 24;
+        S.s("" + ((all & mask_ms) >> 16));
+        S.s("" + (mask_me & all >> 24));
+    }
+
+    public static synchronized void a() {
+        S.s("a");
+        try {
+            Thread.sleep(3000);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static void b() {
+        synchronized (A.class) {
+
+            S.s("b");
+        }
     }
 }

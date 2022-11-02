@@ -18,6 +18,8 @@ public class LinearLayout extends FlowLayout {
      */
     private static final long serialVersionUID = -7411804673224730901L;
     public static int MASK_WEIGHT = 1 << 30;
+    public static int MASK_MARGIN = 0xff;
+    public static int MASK_SIZE = 0xfff;
     @Orientation
     private final int orientation;
 
@@ -44,12 +46,19 @@ public class LinearLayout extends FlowLayout {
             for (int i = 0; i < childrenCount; i++) {
                 Component child = parent.getComponent(i);
                 Dimension dimension = child.getPreferredSize();
+                int marginStart = (dimension.width >> 12) & MASK_MARGIN;
+                int marginEnd = (dimension.width) >> 20 & MASK_MARGIN;
+                int childWidth = dimension.width & MASK_SIZE;
+                int childHeight = dimension.height & MASK_SIZE;
+                boolean isWeightWidth = isWeight(dimension.width);
+                boolean isWeightHeight = isWeight(dimension.height);
+                int childWidthWithMargin = (isWeightWidth ? 0 : childWidth) + marginStart + marginEnd;
                 if (orientation == Orientation.VERTICAL) {
-                    w = Math.max(w, isWeight(dimension.width) ? 0 : dimension.width);
-                    h += (isWeight(dimension.height) ? 0 : dimension.height);
+                    w = Math.max(w, childWidthWithMargin);
+                    h += (isWeightHeight ? 0 : childHeight);
                 } else {
-                    h = Math.max(h, isWeight(dimension.height) ? 0 : dimension.height);
-                    w += (isWeight(dimension.width) ? 0 : dimension.width);
+                    h = Math.max(h, isWeightHeight ? 0 : childHeight);
+                    w += childWidthWithMargin;
                 }
             }
             return new Dimension(insets.left + insets.right + w, insets.top + insets.bottom + h);
@@ -78,17 +87,22 @@ public class LinearLayout extends FlowLayout {
             for (int i = 0; i < childCount; i++) {
                 Component child = parent.getComponent(i);
                 Dimension dimension = child.getPreferredSize();
+                int childWidth = dimension.width & MASK_SIZE;
+                int childHeight = dimension.height & MASK_SIZE;
+                boolean isWeightWidth = isWeight(dimension.width);
+                boolean isWeightHeight = isWeight(dimension.height);
+
                 if (horizontal) {
-                    if (isWeight(dimension.width)) {
-                        weightSum += getWeight(dimension.width);
+                    if (isWeightWidth) {
+                        weightSum += childWidth;
                     } else {
-                        widthMax -= dimension.getWidth();
+                        widthMax -= childWidth;
                     }
                 } else {
-                    if (isWeight(dimension.height)) {
-                        weightSum += getWeight(dimension.height);
+                    if (isWeightHeight) {
+                        weightSum += childHeight;
                     } else {
-                        heightMax -= dimension.getHeight();
+                        heightMax -= childHeight;
                     }
                 }
             }
@@ -98,16 +112,32 @@ public class LinearLayout extends FlowLayout {
             for (int i = 0; i < childCount; i++) {
                 Component child = parent.getComponent(i);
                 Dimension dimension = child.getPreferredSize();
+                int marginStart = (dimension.width >> 12) & MASK_MARGIN;
+                int marginEnd = (dimension.width) >> 20 & MASK_MARGIN;
+                int childWidth = dimension.width & MASK_SIZE;
+                int childHeight = dimension.height & MASK_SIZE;
+                boolean isWeightWidth = isWeight(dimension.width);
+                boolean isWeightHeight = isWeight(dimension.height);
+//                S.s("w[" + isWeightWidth + "]: " + childWidth + "   h[" + isWeightHeight + "]: " + childHeight + "  marginStart:" + marginStart + " marginEnd:" + marginEnd);
                 if (horizontal) {
-                    int widthChild = (isWeight(dimension.width) && weightSum > 0) ? (int) (getWeight(dimension.width) / weightSum * widthMax) : dimension.width;
-                    int heightChild = isWeight(dimension.height) ? heightMax : dimension.height;
-                    child.setBounds(x, y, widthChild, heightChild);
-                    x += child.getWidth();
+                    if (isWeightWidth) {
+                        int childWidthWeight = childWidth;
+                        childWidth = (int) (childWidthWeight / weightSum * widthMax);
+                    }
+                    if (isWeightHeight) {
+                        childHeight = heightMax;
+                    }
+                    child.setBounds(x + marginStart, y, childWidth, childHeight);
+                    x += childWidth + marginStart + marginEnd;
                 } else {
-                    int widthChild = isWeight(dimension.width) ? widthMax : dimension.width;
-                    int heightChild = (isWeight(dimension.height) && weightSum > 0) ? (int) (getWeight(dimension.height) / weightSum * heightMax) : dimension.height;
-                    child.setBounds(x, y, widthChild, heightChild);
-                    y += child.getHeight();
+                    if (isWeightWidth) {
+                        childWidth = widthMax;
+                    }
+                    if (isWeightHeight) {
+                        childHeight = (int) (childHeight / weightSum * heightMax);
+                    }
+                    child.setBounds(x + marginStart, y, childWidth, childHeight);
+                    y += childHeight;
                 }
             }
         }
@@ -117,10 +147,6 @@ public class LinearLayout extends FlowLayout {
         return (MASK_WEIGHT & size) == MASK_WEIGHT;
     }
 
-    private int getWeight(int size) {
-        return MASK_WEIGHT ^ size;
-    }
-
     public @interface Orientation {
         int HORIZONTAL = 0;
         int VERTICAL = 1;
@@ -128,12 +154,31 @@ public class LinearLayout extends FlowLayout {
 
     public static class LayoutParams extends Dimension {
 
+        public int marginStart;
+        public int marginEnd;
+
         public LayoutParams(int height, boolean weight) {
-            this(0, true, height, weight);
+            this((short) 1, true, height, weight);
         }
 
         public LayoutParams(int width, boolean weightWidth, int height, boolean weightHeight) {
-            super(weightWidth ? width | MASK_WEIGHT : width, weightHeight ? height | MASK_WEIGHT : height);
+            this(width, weightWidth, height, weightHeight, (byte) 0, (byte) 0);
+        }
+
+        public LayoutParams(int width, boolean weightWidth, int height, boolean weightHeight, byte marginStart, byte marginEnd) {
+            super((weightWidth ? width | MASK_WEIGHT : width) | marginStart << 12 | marginEnd << 20, (weightHeight ? height | MASK_WEIGHT : height));
+            this.marginStart = marginStart;
+            this.marginEnd = marginEnd;
+        }
+
+        @Override
+        public double getWidth() {
+            return super.getWidth();
+        }
+
+        @Override
+        public double getHeight() {
+            return super.getHeight();
         }
     }
 }
